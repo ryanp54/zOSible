@@ -1,6 +1,8 @@
 ---
   - hosts: zsystem
     gather_facts: no
+    vars_files:
+      - ./vars/last_args.yaml
     environment:
       "{{environment_vars}}"
         
@@ -10,7 +12,7 @@
     tasks:
       - name: Submit a IEFBR14
         zos_job_submit:
-          src: "{{ansible_user}}.SOURCE(TACCTJCL)"
+          src: "{{ data_set_name }}"
           location: DATA_SET
           wait: true
           return_output: true

@@ -9,39 +9,67 @@ jinja_loader = jinja2.FileSystemLoader(searchpath="./.zosible/templates")
 jinja_env = jinja2.Environment(loader=jinja_loader)
 
 
-def process(cmd, args):
+def process(cmd, args_list):
 	#TODO: Process options? (See getopt module if so)
 
 	if cmd == 'setup':
-		if len(args) == 0:
-			setup()
-		else:
-			print('Too many arguments given. Setup takes 0 arguments.')
+		setup(args_list)
+	elif cmd == 'submit':
+		submit(args_list)
 	else:
 		print(cmd, "is not a valid command.")
 
 
 
-def setup():
-	# Set template values from user input
-	values = {}
-	values["target_host"] = "192.86.32.153" #input("Enter IP address:")
-	values["target_user"] = "z00413" #input("Enter username:")
-	values["target_pwd"] = "party176" #input("Enter password:")
+def setup(args_list):
+	if len(args_list) > 0:
+		print("Setup takes 0 arguments. Arguments ignored.")
 
-	host_template = jinja_env.get_template("./init_host.j2")
-	host_text = host_template.render(values)
+	# Set values for template from user input
+	conn_info = {}
+	conn_info["target_host"] = "192.86.32.153" #input("Enter IP address:")
+	conn_info["target_port"] = "22" #input("Enter ssh port or enter for default:")
+	conn_info["target_user"] = "z00413" #input("Enter username:")
+	conn_info["target_pwd"] = "party176" #input("Enter password:")
 
-	host_file = open("./.zosible/inventory/host", "w")
-	host_file.write(host_text)
-	host_file.close()
+	# Create hosts inventory file for initial connection
+	file_from_template("./init_host.j2", "./.zosible/inventory/host", conn_info)
 
+	# Setup new hosts inventory and host_vars
 	setup_ansb = subprocess.run(
 		["ansible-playbook", "./host_setup.yaml"],
 		cwd="./.zosible/")
-
+	# Clean up old, renamed hosts file if present
 	rm_old_host = subprocess.run(
 		["rm", "./.zosible/inventory/host.*"],
 		stdout=subprocess.DEVNULL)
+
+def submit(args_list):
+	if len(args_list) == 0 or len(args_list) > 2:
+		print("Incorrect syntax: zosible submit [LOCAL_FILE_NAME] DATA_SET_NAME")
+		return
+
+	dsname = args_list.pop()
+	if args_list:
+		pb_args = [{"name": "local_file_name", "value": args_list[0]}]
+		#TODO: Create an upload playbook and execute here.
+
+	run_playbook_w_args(
+		"./submit_job.yaml",
+		[{"name": "data_set_name", "value": dsname}])
+
+def run_playbook_w_args(pbname, args_list):
+	file_from_template(
+		"./last_args.j2",
+		"./.zosible/vars/last_args.yaml",
+		{"vars_list": args_list})
+	return subprocess.run(["ansible-playbook", pbname], cwd="./.zosible/")
+
+def file_from_template(template_name, filename, values):
+	template = jinja_env.get_template(template_name)
+	text = template.render(values)
+	f = open(filename, "w")
+	f.write(text)
+	f.close()
 
 process(sys.argv[1], sys.argv[2:])
