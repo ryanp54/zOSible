@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+import sys
+import subprocess
+import pdb
+import jinja2
+
+# Setup Jinja2
+jinja_loader = jinja2.FileSystemLoader(searchpath="./.zosible/templates")
+jinja_env = jinja2.Environment(loader=jinja_loader)
+
+
+def process(cmd, args):
+	#TODO: Process options? (See getopt module if so)
+
+	if cmd == 'setup':
+		if len(args) == 0:
+			setup()
+		else:
+			print('Too many arguments given. Setup takes 0 arguments.')
+	else:
+		print(cmd, "is not a valid command.")
+
+
+
+def setup():
+	# Set template values from user input
+	values = {}
+	values["target_host"] = "192.86.32.153" #input("Enter IP address:")
+	values["target_user"] = "z00413" #input("Enter username:")
+	values["target_pwd"] = "party176" #input("Enter password:")
+
+	host_template = jinja_env.get_template("./init_host.j2")
+	host_text = host_template.render(values)
+
+	host_file = open("./.zosible/inventory/host", "w")
+	host_file.write(host_text)
+	host_file.close()
+
+	setup_ansb = subprocess.run(
+		["ansible-playbook", "./host_setup.yaml"],
+		cwd="./.zosible/")
+
+	rm_old_host = subprocess.run(
+		["rm", "./.zosible/inventory/host.*"],
+		stdout=subprocess.DEVNULL)
+
+process(sys.argv[1], sys.argv[2:])
