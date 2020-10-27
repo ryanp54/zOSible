@@ -10,7 +10,7 @@
       - ibm.ibm_zos_core
     
     tasks:
-      - name: Submit a IEFBR14
+      - name: Submit data set for execution
         zos_job_submit:
           src: "{{ data_set_name }}"
           location: DATA_SET

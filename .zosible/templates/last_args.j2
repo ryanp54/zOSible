@@ -1,4 +1,6 @@
 ---
-{% for var_entry in vars_list %}
-{{ var_entry.name }}: "{{ var_entry.value }}"
+{% for name, value in vars_dict.items() %}
+{% if name %}
+{{ name }}: "{{ value }}"
+{% endif %}
 {% endfor %}

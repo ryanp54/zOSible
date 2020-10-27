@@ -1,75 +1,164 @@
 #!/usr/bin/env python3
-import sys
-import subprocess
+import os, sys, subprocess
 import pdb
+import argparse
+import re
+
+from types import SimpleNamespace
+
 import jinja2
 
+# Setup shared parser arguments
+parent_parser = argparse.ArgumentParser(add_help=False)
+parent_parser.add_argument('-r', '--replace', action='store_true',
+						   help='replace data set if it already exists')
 # Setup Jinja2
-jinja_loader = jinja2.FileSystemLoader(searchpath="./.zosible/templates")
+jinja_loader = jinja2.FileSystemLoader(searchpath='./.zosible/templates')
 jinja_env = jinja2.Environment(loader=jinja_loader)
 
 
-def process(cmd, args_list):
-	#TODO: Process options? (See getopt module if so)
+def process():
+	cmds = {
+		'setup': setup,
+		'submit': submit,
+		'create': create,
+		'delete': delete,
+		'help': main_help}
 
-	if cmd == 'setup':
-		setup(args_list)
-	elif cmd == 'submit':
-		submit(args_list)
+	parser = argparse.ArgumentParser(
+		description='Run a zOSible command.',
+		# Use crazy character as hack to disable optional arg checks
+		prefix_chars='\u9999',
+		add_help=False)
+	parser.add_argument(
+		'command',
+		choices=list(cmds.keys()),
+		help='command to run')
+	parser.add_argument(
+		'argument',
+		nargs='*',
+		help='command specific argument')
+	args = parser.parse_args()
+
+	if args.command == 'help':
+		main_help(parser)
 	else:
-		print(cmd, "is not a valid command.")
+ 		cmds[args.command](args.argument)
 
+
+def main_help(parser):
+	parser.print_help()
+	print('\nEnter a valid command with -h or --help'
+		  'to diplay command specific help.\n')
 
 
 def setup(args_list):
-	if len(args_list) > 0:
-		print("Setup takes 0 arguments. Arguments ignored.")
+	# TODO: Backup docker dir and test.
+	cmd_desc = ('Setup Ansible host connection details and configuration '
+			    'variables to be used with zOSible.')
+	k_help = 'Prompt for password instead of storing in host variable.'
+	
+	parser = argparse.ArgumentParser(prog='zosible setup',
+									 description=cmd_desc)
+	parser.add_argument('-k', '--ask-pass', action='store_true', help=k_help)
+	cmd_args = parser.parse_args(args_list)
 
 	# Set values for template from user input
 	conn_info = {}
-	conn_info["target_host"] = "192.86.32.153" #input("Enter IP address:")
-	conn_info["target_port"] = "22" #input("Enter ssh port or enter for default:")
-	conn_info["target_user"] = "z00413" #input("Enter username:")
-	conn_info["target_pwd"] = "party176" #input("Enter password:")
+	conn_info['target_host'] = '192.86.32.153' #input('Enter IP address:')
+	conn_info['target_port'] = '22' #input('Enter ssh port or enter for default:')
+	conn_info['target_user'] = 'z00413' #input('Enter username:')
+	if not cmd_args.ask_pass:
+		conn_info['target_pwd'] = 'party176' #input('Enter password:')
 
 	# Create hosts inventory file for initial connection
-	file_from_template("./init_host.j2", "./.zosible/inventory/host", conn_info)
+	write_from_template('./.zosible/inventory/host', './init_host.j2', conn_info)
 
 	# Setup new hosts inventory and host_vars
 	setup_ansb = subprocess.run(
-		["ansible-playbook", "./host_setup.yaml"],
-		cwd="./.zosible/")
+		['ansible-playbook', './host_setup.yaml'],
+		cwd='./.zosible/')
 	# Clean up old, renamed hosts file if present
 	rm_old_host = subprocess.run(
-		["rm", "./.zosible/inventory/host.*"],
+		['rm', './.zosible/inventory/host.*'],
 		stdout=subprocess.DEVNULL)
 
+
 def submit(args_list):
+	# Refactor for argparse and fully fleshout playbook/funcitonality.
 	if len(args_list) == 0 or len(args_list) > 2:
-		print("Incorrect syntax: zosible submit [LOCAL_FILE_NAME] DATA_SET_NAME")
+		print('Incorrect syntax: zosible submit [LOCAL_FILE_NAME] DATA_SET_NAME')
 		return
 
 	dsname = args_list.pop()
 	if args_list:
-		pb_args = [{"name": "local_file_name", "value": args_list[0]}]
+		pb_args = [{'name': 'local_file_name', 'value': args_list[0]}]
 		#TODO: Create an upload playbook and execute here.
 
 	run_playbook_w_args(
-		"./submit_job.yaml",
-		[{"name": "data_set_name", "value": dsname}])
+		'./submit_job.yaml',
+		[{'name': 'data_set_name', 'value': dsname}])
 
-def run_playbook_w_args(pbname, args_list):
-	file_from_template(
-		"./last_args.j2",
-		"./.zosible/vars/last_args.yaml",
-		{"vars_list": args_list})
-	return subprocess.run(["ansible-playbook", pbname], cwd="./.zosible/")
 
-def file_from_template(template_name, filename, values):
+def create(args_list):
+	parser = argparse.ArgumentParser(
+		prog='zosible create',
+		description='Create a data set from a local file',
+		parents=[parent_parser])
+	parser.add_argument('local_file_name', help='local file to upload')
+	parser.add_argument('data_set_name', help='name of data set to create')
+	cmd_args = parser.parse_args(args_list)
+	
+	dsninfo = interpret_dsname(cmd_args.data_set_name)
+	if dsninfo:
+		cmd_args.data_set_name = dsninfo.name
+		cmd_args.data_set_type = dsninfo.type
+		run_playbook_w_args('./create.yaml', cmd_args)
+	else:
+		print('Error: Invalid data set name.\n'
+			  'Check z/OS data set naming requirements.')
+
+
+def delete(args_list):
+	pass
+
+
+# Setup Ansible variables and run playbook via command.
+def run_playbook_w_args(playbook_name, args_dict):
+	relative_path = getattr(args_dict, 'local_file_name', '')
+	if relative_path:
+		args_dict.local_file_name = os.path.abspath(relative_path)
+
+	write_from_template(
+		'./.zosible/vars/last_args.yaml',
+		'./last_args.j2',
+		{'vars_dict': vars(args_dict)})
+
+	return subprocess.run(['ansible-playbook', playbook_name],
+						  cwd='./.zosible/')
+
+
+def write_from_template(filename, template_name, values):
 	template = jinja_env.get_template(template_name)
 	text = template.render(values)
-	f = open(filename, "w")
+	f = open(filename, 'w')
 	f.write(text)
 	f.close()
 
-process(sys.argv[1], sys.argv[2:])
+def interpret_dsname(name):
+	pattern = (r"^[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}\."
+			   r"[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}"
+			   r"(\.[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7})?"
+			   r"(\([a-zA-Z#@$]{1}[0-9a-zA-Z#@$]{0,7}\))?$")
+
+	matches = re.search(pattern, name)
+
+	result = None
+	if matches:
+		result = SimpleNamespace(name=name.upper())
+		result.type = 'MEMBER' if matches.group(2) else 'SEQ'
+
+	return result
+
+
+process()
