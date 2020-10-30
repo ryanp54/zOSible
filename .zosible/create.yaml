@@ -10,6 +10,8 @@
       - ibm.ibm_zos_core
     
     tasks:
+       - include: ask_pass.yaml
+       
        - name: Create a data set if it doesn't exist
          zos_data_set:
            name: "{{data_set_name}}" # Z00413.SOURCE(TEST)

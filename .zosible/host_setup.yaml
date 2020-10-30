@@ -101,6 +101,8 @@
     max_search_depth: 15
 
   tasks:
+    - include: ask_pass.yaml
+
     - name: Gather potential dependency paths
       raw: 'find / -level {{ max_search_depth }} -type f -perm -111 -name "python*" -o -type f -perm -111 -name "dtouch" 2>/dev/null || :'
       register: dependency_paths
