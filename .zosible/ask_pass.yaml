@@ -1,0 +1,12 @@
+- name: Prompt for password if needed
+  block:
+    - pause:
+        prompt: "Enter SSH password"
+        echo: no
+      register: response
+      no_log: yes
+
+    - set_fact:
+        ansible_ssh_pass: "{{ response.user_input }}"
+      no_log: yes
+  when: ask_pass is defined and ansible_ssh_pass is not defined

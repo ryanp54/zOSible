@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, subprocess
-import pdb
-import argparse
-import re
+import pdb, argparse, re, glob
 
 from types import SimpleNamespace
 
@@ -53,41 +51,49 @@ def main_help(parser):
 
 
 def setup(args_list):
-	# TODO: Backup docker dir and test.
 	cmd_desc = ('Setup Ansible host connection details and configuration '
 			    'variables to be used with zOSible.')
-	k_help = 'Prompt for password instead of storing in host variable.'
-	
+	k_help = ('Prompt for password with each command '
+			  'instead of storing in host variable.')
+	n_help = ('Never ask for password. '
+			  'Use this if using SSH keys for connection.')
+
 	parser = argparse.ArgumentParser(prog='zosible setup',
 									 description=cmd_desc)
-	parser.add_argument('-k', '--ask-pass', action='store_true', help=k_help)
-	cmd_args = parser.parse_args(args_list)
+	askp = parser.add_mutually_exclusive_group()
+	askp.add_argument('-k', '--ask-pass', action='store_true', help=k_help)
+	askp.add_argument('-n', '--never-ask', action='store_true', help=n_help)
+	cmdargs = parser.parse_args(args_list)
 
 	# Set values for template from user input
 	conn_info = {}
 	conn_info['target_host'] = '192.86.32.153' #input('Enter IP address:')
-	conn_info['target_port'] = '22' #input('Enter ssh port or enter for default:')
+	conn_info['target_port'] = input(
+		'Enter ssh port or leave blank for default:')
 	conn_info['target_user'] = 'z00413' #input('Enter username:')
-	if not cmd_args.ask_pass:
-		conn_info['target_pwd'] = 'party176' #input('Enter password:')
-
+	if cmdargs.ask_pass:
+		conn_info['ask_pass'] = True
+	
 	# Create hosts inventory file for initial connection
-	write_from_template('./.zosible/inventory/host', './init_host.j2', conn_info)
+	write_from_template('./.zosible/inventory/host', 'inventory', conn_info)
 
+	setup_cmd = ['ansible-playbook', './host_setup.yaml', '-k']
+	if cmdargs.never_ask:
+		# Remove --ask-pass flag from command
+		setup_cmd.pop()
+		
 	# Setup new hosts inventory and host_vars
-	setup_ansb = subprocess.run(
-		['ansible-playbook', './host_setup.yaml'],
-		cwd='./.zosible/')
+	subprocess.run(setup_cmd, cwd='./.zosible/')
 	# Clean up old, renamed hosts file if present
-	rm_old_host = subprocess.run(
-		['rm', './.zosible/inventory/host.*'],
-		stdout=subprocess.DEVNULL)
+	oldf = glob.glob('./.zosible/inventory/host.*')
+	if oldf:
+		subprocess.run(['rm', oldf[0]], stdout=subprocess.DEVNULL,
+					   stderr=subprocess.DEVNULL)
 
 
 def submit(args_list):
 	# Refactor for argparse and fully fleshout playbook/funcitonality.
 	if len(args_list) == 0 or len(args_list) > 2:
-		print('Incorrect syntax: zosible submit [LOCAL_FILE_NAME] DATA_SET_NAME')
 		return
 
 	dsname = args_list.pop()
@@ -107,13 +113,13 @@ def create(args_list):
 		parents=[parent_parser])
 	parser.add_argument('local_file_name', help='local file to upload')
 	parser.add_argument('data_set_name', help='name of data set to create')
-	cmd_args = parser.parse_args(args_list)
+	cmdargs = parser.parse_args(args_list)
 	
-	dsninfo = interpret_dsname(cmd_args.data_set_name)
+	dsninfo = interpret_dsname(cmdargs.data_set_name)
 	if dsninfo:
-		cmd_args.data_set_name = dsninfo.name
-		cmd_args.data_set_type = dsninfo.type
-		run_playbook_w_args('./create.yaml', cmd_args)
+		cmdargs.data_set_name = dsninfo.name
+		cmdargs.data_set_type = dsninfo.type
+		run_playbook_w_args('./create.yaml', cmdargs)
 	else:
 		print('Error: Invalid data set name.\n'
 			  'Check z/OS data set naming requirements.')
@@ -131,7 +137,7 @@ def run_playbook_w_args(playbook_name, args_dict):
 
 	write_from_template(
 		'./.zosible/vars/last_args.yaml',
-		'./last_args.j2',
+		'last_args',
 		{'vars_dict': vars(args_dict)})
 
 	return subprocess.run(['ansible-playbook', playbook_name],
@@ -139,9 +145,13 @@ def run_playbook_w_args(playbook_name, args_dict):
 
 
 def write_from_template(filename, template_name, values):
-	template = jinja_env.get_template(template_name)
+	template_file = './{0}.j2'.format(template_name)
+	template = jinja_env.get_template(template_file)
 	text = template.render(values)
-	f = open(filename, 'w')
+	write_file(filename, text)
+
+def write_file(name, text):
+	f = open(name, 'w')
 	f.write(text)
 	f.close()
 
