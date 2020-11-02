@@ -9,4 +9,4 @@
     - set_fact:
         ansible_ssh_pass: "{{ response.user_input }}"
       no_log: yes
-  when: ask_pass is defined and ansible_ssh_pass is not defined
+  when: ask_pass is defined

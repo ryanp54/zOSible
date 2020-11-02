@@ -93,6 +93,8 @@
 #                 a small max_search_depth will be much faster.
 ###############################################################################
 
+# Run with --ask-pass
+
 - hosts: zsystem
   gather_facts: no
   vars:
@@ -101,8 +103,54 @@
     max_search_depth: 15
 
   tasks:
-    - include: ask_pass.yaml
+    - name: Setup SSH authentication
+      block:
+        - name: Run expect to generate SSH keys
+          shell: |
+            set timeout 30
+            spawn ssh-keygen -t rsa -C {{ ansible_user }}@{{ ansible_host }}
 
+            expect "Enter file in which to save the key (/root/.ssh/id_rsa):"
+            send "\n"
+
+            expect {
+              "Overwrite (y/n)?" {
+                send "n\n"
+              }
+              "Enter passphrase (empty for no passphrase):" {
+                send "\n"
+
+                expect "Enter same passphrase again:"
+                send "\n"
+              }
+            }
+
+            expect eof
+          args:
+            executable: /usr/bin/expect
+          delegate_to: localhost
+
+        - name: Run expect to copy SSH key to host
+          shell: |
+            set timeout 30
+            spawn ssh-copy-id {{ ansible_user }}@{{ ansible_host }}
+
+            expect {
+              "*to continue connecting (yes/no/*)?" {
+                send "yes\n"
+                exp_continue
+              }
+              "*password:" {
+                send "{{ ansible_ssh_pass }}\n"
+              }
+            }
+
+            expect eof
+          args:
+            executable: /usr/bin/expect
+          delegate_to: localhost
+      when: ansible_ssh_pass is defined
+     
     - name: Gather potential dependency paths
       raw: 'find / -level {{ max_search_depth }} -type f -perm -111 -name "python*" -o -type f -perm -111 -name "dtouch" 2>/dev/null || :'
       register: dependency_paths
@@ -180,13 +228,10 @@
     - set_fact:
         target_host: "{{ ansible_host }}"
 
-    - set_fact:
-        target_pwd: "{{ ansible_ssh_pass }}"
-
     - name: Create inventory file
       template:
         src: "{{ playbook_dir }}/templates/inventory.j2"
-        dest: "{{ playbook_dir }}/inventory/{{ inventory_hostname_short }}"
+        dest: "{{ playbook_dir }}/inventory/host"
         force: yes
         backup: yes
       vars:

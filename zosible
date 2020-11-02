@@ -54,15 +54,14 @@ def setup(args_list):
 	cmd_desc = ('Setup Ansible host connection details and configuration '
 			    'variables to be used with zOSible.')
 	k_help = ('Prompt for password with each command '
-			  'instead of storing in host variable.')
-	n_help = ('Never ask for password. '
-			  'Use this if using SSH keys for connection.')
+			  'instead of setting up SSH keys.')
+	n_help = ('Do not setup SSH keys and authentication. '
+			  'Use this if setting up SSH keys manually.')
 
 	parser = argparse.ArgumentParser(prog='zosible setup',
 									 description=cmd_desc)
-	askp = parser.add_mutually_exclusive_group()
-	askp.add_argument('-k', '--ask-pass', action='store_true', help=k_help)
-	askp.add_argument('-n', '--never-ask', action='store_true', help=n_help)
+	parser.add_argument('-k', '--ask-pass', action='store_true', help=k_help)
+	parser.add_argument('-n', '--no-ssh', action='store_true', help=n_help)
 	cmdargs = parser.parse_args(args_list)
 
 	# Set values for template from user input
@@ -71,25 +70,26 @@ def setup(args_list):
 	conn_info['target_port'] = input(
 		'Enter ssh port or leave blank for default:')
 	conn_info['target_user'] = 'z00413' #input('Enter username:')
+	
 	if cmdargs.ask_pass:
 		conn_info['ask_pass'] = True
-	elif cmdargs.never_ask:
-		conn_info['ask_pass'] = False
-	else:
-		conn_info['target_pwd'] = 'party176' #input('Enter password:')
-
-	# Create hosts inventory file for initial connection
+	
+	# Create host inventory file for initial connection
+	# TODO?: Move this to playbook.
 	write_from_template('./.zosible/inventory/host', 'inventory', conn_info)
 
-	# Setup new hosts inventory and host_vars
-	subprocess.run(['ansible-playbook', './host_setup.yaml'],
-				   cwd='./.zosible/')
-	# Clean up old, renamed hosts file if present
+	subproc_cmdlist = ['ansible-playbook', './host_setup.yaml']
+	if not cmdargs.no_ssh:
+		subproc_cmdlist.append('-k')
+
+	# Setup new host inventory and host_vars
+	subprocess.run(subproc_cmdlist, cwd='./.zosible/')
+	# Clean up old, renamed host inventory
 	oldf = glob.glob('./.zosible/inventory/host.*')
 	if oldf:
 		subprocess.run(['rm', oldf[0]], stdout=subprocess.DEVNULL,
 					   stderr=subprocess.DEVNULL)
-
+	
 
 def submit(args_list):
 	# Refactor for argparse and fully fleshout playbook/funcitonality.
