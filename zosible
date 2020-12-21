@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-import os, sys, subprocess
-import pdb, argparse, json, re, glob
+import os, subprocess
+import argparse, json, re
 
 from types import SimpleNamespace
-
-import jinja2
 
 # Setup shared parser arguments
 parent_parser = argparse.ArgumentParser(add_help=False)
 parent_parser.add_argument('-r', '--replace', action='store_true',
 						   help='replace data set if it already exists')
-# Setup Jinja2
-jinja_loader = jinja2.FileSystemLoader(searchpath='./.zosible/templates')
-jinja_env = jinja2.Environment(loader=jinja_loader)
 
 
 def process():
@@ -107,7 +102,6 @@ def submit(args_list):
 						help='name of data set to create')
 	cmdargs = parser.parse_args(args_list)
 
-	# Add default computed args
 	cmdargs.data_set_type = 'SEQ'
 	cmdargs.exec_type = 'JCL'
 
@@ -125,7 +119,7 @@ def submit(args_list):
 		cmdargs.exec_type = 'REXX'
 
 	run_playbook_w_vars('submit_job', cmdargs)
-	subprocess.run(['cat', './.zosible/output.txt'])
+	subprocess.run(['cat', './output.txt'])
 
 
 def create(args_list):
