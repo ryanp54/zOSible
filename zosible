@@ -56,9 +56,9 @@ def setup(args_list):
 	cmd_desc = ('Setup Ansible host connection details and configuration '
 			    'variables to be used with zOSible.')
 	k_help = ('Prompt for password with each command '
-			  'instead of setting up SSH keys.')
-	n_help = ('Do not setup SSH keys and authentication. '
-			  'Use this if setting up SSH keys manually.')
+			  'instead of using SSH keys.')
+	n_help = ('Do not setup SSH keys, but commands will use SSH keys to '
+			  'connect. An ssh-agent is required if using private keys.')
 
 	parser = argparse.ArgumentParser(prog='zosible setup',
 									 description=cmd_desc)
@@ -67,21 +67,24 @@ def setup(args_list):
 
 	cmdargs = parser.parse_args(args_list)
 
-	# Set values for template from user input
-	conn_info = {}
-	conn_info['ansible_host'] = input('Enter IP address:')
-	conn_info['ansible_port'] = input(
-	   'Enter ssh port or leave blank for default:') or 22
-	conn_info['ansible_user'] = input('Enter username:')
+	# Set values for inventory template from user input
+	host_info = {}
+	host_info['ansible_host'] = input('Enter IP address:')
+	host_info['ansible_port'] = input(
+	 	'Enter ssh port or leave blank for default:') or 22
+	host_info['ansible_user'] = input('Enter username:')
+
+	# Pass host to ansible command since inventory doesn't exist
+	cli_args = {'-i': host_info['ansible_host'] + ','}
 
 	if cmdargs.ask_pass == True:
-		conn_info['ask_pass'] = True
+		host_info['ask_pass'] = True
+	if cmdargs.no_ssh == True:
+		host_info['no_ssh'] = True
+	else:
+		cli_args['--ask-pass'] = None
 
-	args = {'-i': conn_info['ansible_host'] + ','}
-	if not cmdargs.no_ssh:
-		args['-k'] = None
-
-	run_playbook_w_vars('./host_setup.yaml', conn_info, args_dict=args)
+	run_playbook_w_vars('host_setup', host_info, args_dict=cli_args)
 
 
 def submit(args_list):
@@ -111,7 +114,7 @@ def submit(args_list):
 	if re.search(r"\/\*.*REXX.*\*\/", firstln_txt, re.I):
 		cmdargs.exec_type = 'REXX'
 
-	run_playbook_w_vars('./submit_job.yaml', vars(cmdargs))
+	run_playbook_w_vars('submit_job', cmdargs)
 	subprocess.run(['cat', './.zosible/output.txt'])
 
 
@@ -128,7 +131,7 @@ def create(args_list):
 	if dsninfo:
 		cmdargs.data_set_name = dsninfo.name
 		cmdargs.data_set_type = dsninfo.type
-		run_playbook_w_vars('./create.yaml', vars(cmdargs))
+		run_playbook_w_vars('create', cmdargs)
 	else:
 		print('Error: Invalid data set name.\n'
 			  'Check z/OS data set naming requirements.')
@@ -146,7 +149,7 @@ def delete(args_list):
 	if dsninfo:
 		cmdargs.data_set_name = dsninfo.name
 		cmdargs.data_set_type = dsninfo.type
-		run_playbook_w_vars('./delete.yaml', vars(cmdargs))
+		run_playbook_w_vars('delete', cmdargs)
 	else:
 		print('Error: Invalid data set name.\n'
 			  'Check z/OS data set naming requirements.')
@@ -166,7 +169,7 @@ def fetch(args_list):
 		cmdargs.data_set_name = dsninfo.name
 		if not cmdargs.local_file_name:
 			cmdargs.local_file_name = cmdargs.data_set_name
-		run_playbook_w_vars('./fetch.yaml', vars(cmdargs))
+		run_playbook_w_vars('fetch', cmdargs)
 	else:
 		print('Error: Invalid data set name.\n'
 			  'Check z/OS data set naming requirements.')
@@ -181,23 +184,27 @@ def dslist(args_list):
 	cmdargs = parser.parse_args(args_list)
 
 	cmdargs.query = cmdargs.query.upper()
-	run_playbook_w_vars('./list.yaml', vars(cmdargs))
+	run_playbook_w_vars('list', cmdargs)
 
 
 # Setup Ansible variables and run playbook via command.
-def run_playbook_w_vars(playbook_name, vars_dict, args_dict={}):
-	file_path = vars_dict.get('local_file_name')
-	if file_path:
-		vars_dict['local_file_name'] = os.path.abspath(file_path)
+def run_playbook_w_vars(playbook_name, playbook_vars, args_dict={}):
+	playbook_name = './{}.yaml'.format(playbook_name)
+	if type(playbook_vars) != dict:
+		playbook_vars = vars(playbook_vars)
 
-	args_list = ['-e', json.dumps(vars_dict)]
+	file_path = playbook_vars.get('local_file_name')
+	if file_path:
+		playbook_vars['local_file_name'] = os.path.abspath(file_path)
+
+	args_list = ['-e', json.dumps(playbook_vars)]
 	for k, v in args_dict.items():
 		args_list.append(k)
 		if v is not None:
 			args_list.append(v)
 
 	subprocess.run(['ansible-playbook', *args_list, playbook_name],
-				   cwd='./.zosible/')
+				   cwd='/usr/local/bin/.zosible/')
 
 
 def interpret_dsname(name):
