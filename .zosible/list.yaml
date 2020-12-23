@@ -9,6 +9,8 @@
 
     tasks:
       - include: ask_pass.yaml
-      - include: upload.yaml
-      - include: remove.yaml
-        when: create_result.changed and copy_result.failed
+
+      - name: List matching data sets
+        zos_find:
+          patterns:
+            - "{{ query }}"

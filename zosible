@@ -21,6 +21,8 @@ def process():
 		'submit': submit,
 		'create': create,
 		'delete': delete,
+		'list': dslist,
+		'fetch': fetch,
 		'help': main_help}
 
 	parser = argparse.ArgumentParser(
@@ -149,6 +151,38 @@ def delete(args_list):
 	else:
 		print('Error: Invalid data set name.\n'
 			  'Check z/OS data set naming requirements.')
+
+def fetch(args_list):
+	parser = argparse.ArgumentParser(
+		prog='zosible fetch',
+		description='Download a data set to a local file',
+		parents=[parent_parser])
+	parser.add_argument('data_set_name', help='name of data set to download')
+	parser.add_argument('local_file_name',
+						help='where to place downloaded data set')
+	cmdargs = parser.parse_args(args_list)
+
+	dsninfo = interpret_dsname(cmdargs.data_set_name)
+	if dsninfo:
+		cmdargs.data_set_name = dsninfo.name
+		if not cmdargs.local_file_name:
+			cmdargs.local_file_name = cmdargs.data_set_name
+		run_playbook_w_vars('./fetch.yaml', vars(cmdargs))
+	else:
+		print('Error: Invalid data set name.\n'
+			  'Check z/OS data set naming requirements.')
+
+def dslist(args_list):
+	parser = argparse.ArgumentParser(
+		prog='zosible list',
+		description='List data sets',
+		parents=[parent_parser])
+	parser.add_argument('query', help='query to use to find data sets')
+
+	cmdargs = parser.parse_args(args_list)
+
+	cmdargs.query = cmdargs.query.upper()
+	run_playbook_w_vars('./list.yaml', vars(cmdargs))
 
 
 # Setup Ansible variables and run playbook via command.

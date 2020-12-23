@@ -9,6 +9,9 @@
 
     tasks:
       - include: ask_pass.yaml
-      - include: upload.yaml
-      - include: remove.yaml
-        when: create_result.changed and copy_result.failed
+
+      - name: Fetch data set or member
+        zos_fetch:
+          src: "{{ data_set_name }}"
+          dest: "{{ local_file_name }}"
+          flat: true
