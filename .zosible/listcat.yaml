@@ -1,0 +1,36 @@
+---
+  - hosts: zsystem
+    gather_facts: no
+    environment:
+      "{{environment_vars}}"
+
+    collections:
+      - ibm.ibm_zos_core
+
+    tasks:
+      - include: auth.yaml
+
+      - name: List data sets matching pattern.
+        zos_mvs_raw:
+          program_name: idcams
+          auth: true
+          dds:
+            - dd_output:
+                dd_name: sysprint
+                return_content:
+                  type: text
+            - dd_input:
+                dd_name: sysin
+                content: " LISTCAT ENTRIES('{{ query }}')"
+        register: list_results
+
+      - set_fact:
+          list_output: "{{list_results.dd_names[0].content}}"
+
+      - name: Write job output
+        template:
+          src: "{{ playbook_dir }}/templates/list_output.j2"
+          dest: "/usr/local/bin/.zosible/output.txt"
+          force: yes
+        delegate_to: localhost
+

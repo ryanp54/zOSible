@@ -1,0 +1,25 @@
+---
+  - hosts: zsystem
+    gather_facts: no
+    environment:
+      "{{environment_vars}}"
+
+    collections:
+      - ibm.ibm_zos_core
+
+    tasks:
+      - include: auth.yaml
+
+      - zos_tso_command:
+          commands:
+            - "LISTDS '{{query}}' MEMBERS"
+        register: tso_results
+      - set_fact:
+          list_output: "{{tso_results.output[0].content}}"
+
+      - name: Write job output
+        template:
+          src: "{{ playbook_dir }}/templates/list_output.j2"
+          dest: "/usr/local/bin/.zosible/output.txt"
+          force: yes
+        delegate_to: localhost

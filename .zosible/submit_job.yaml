@@ -38,12 +38,10 @@
           - set_fact:
               job_output: "{{exec_results.output}}"
         when: exec_type is defined and exec_type == 'REXX'
-      - debug:
-          var: job_output
 
       - name: Write job output
         template:
           src: "{{ playbook_dir }}/templates/job_output.j2"
-          dest: "./output.txt"
+          dest: "/usr/local/bin/.zosible/output.txt"
           force: yes
         delegate_to: localhost

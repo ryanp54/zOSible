@@ -7,224 +7,262 @@ from types import SimpleNamespace
 # Setup shared parser arguments
 parent_parser = argparse.ArgumentParser(add_help=False)
 parent_parser.add_argument('-r', '--replace', action='store_true',
-						   help='replace data set if it already exists')
+                           help='replace data set if it already exists')
 
+OUT_PATH = '/usr/local/bin/.zosible/output.txt'
 
 def process():
-	cmds = {
-		'setup': setup,
-		'submit': submit,
-		'create': create,
-		'delete': delete,
-		'list': dslist,
-		'fetch': fetch,
-		'help': main_help}
+    cmds = {
+        'setup': setup,
+        'submit': submit,
+        'create': create,
+        'delete': delete,
+        'list': dslist,
+        'fetch': fetch,
+        'help': main_help}
 
-	parser = argparse.ArgumentParser(
-		description='Run a zOSible command.',
-		# Use crazy character as hack to disable optional arg checks
-		prefix_chars='\u9999',
-		add_help=False)
-	parser.add_argument(
-		'command',
-		choices=list(cmds.keys()),
-		help='command to run')
-	parser.add_argument(
-		'argument',
-		nargs='*',
-		help='command specific argument')
-	args = parser.parse_args()
+    parser = argparse.ArgumentParser(
+        description='Run a zOSible command.',
+        # Use crazy character as hack to disable optional arg checks
+        prefix_chars='\u9999',
+        add_help=False)
+    parser.add_argument(
+        'command',
+        choices=list(cmds.keys()),
+        help='command to run')
+    parser.add_argument(
+        'argument',
+        nargs='*',
+        help='command specific argument')
+    args = parser.parse_args()
 
-	if args.command == 'help':
-		main_help(parser)
-	else:
- 		cmds[args.command](args.argument)
+    if args.command == 'help':
+        main_help(parser)
+    else:
+        cmds[args.command](args.argument)
 
 
 def main_help(parser):
-	parser.print_help()
-	print('\nEnter a valid command with -h or --help'
-		  'to diplay command specific help.\n')
+    parser.print_help()
+    print('\nEnter a valid command with -h or --help'
+          'to diplay command specific help.\n')
 
 
 def setup(args_list):
-	cmd_desc = ('Setup Ansible host connection details and configuration '
-			    'variables to be used with zOSible.')
-	k_help = ('Prompt for password with each command '
-			  'instead of using SSH keys.')
-	p_help = ('Do not protect SSH key with a passphrase. Eliminates '
-			  'need to enter password after setup.')
-	s_help = ('Do not setup SSH keys, but still use SSH keys to connect. '
-			  'An ssh-agent is required if using private keys.')
+    cmd_desc = ('Setup Ansible host connection details and configuration '
+                'variables to be used with zOSible.')
+    k_help = ('Prompt for password with each command '
+              'instead of using SSH keys.')
+    p_help = ('Do not protect SSH key with a passphrase. Eliminates '
+              'need to enter password after setup.')
+    s_help = ('Do not setup SSH keys, but still use SSH keys to connect. '
+              'An ssh-agent is required if using private keys.')
 
-	parser = argparse.ArgumentParser(prog='zosible setup',
-									 description=cmd_desc)
-	authgroup = parser.add_mutually_exclusive_group()
-	authgroup.add_argument('-k', '--ask-pass', action='store_true',
-						   help=k_help)
-	authgroup.add_argument('-p', '--no-pass', action='store_true',
-						   help=p_help)
-	authgroup.add_argument('-s', '--no-ssh', action='store_true',
-						   help=s_help)
+    parser = argparse.ArgumentParser(prog='zosible setup',
+                                     description=cmd_desc)
+    authgroup = parser.add_mutually_exclusive_group()
+    authgroup.add_argument('-k', '--ask-pass', action='store_true',
+                           help=k_help)
+    authgroup.add_argument('-p', '--no-pass', action='store_true',
+                           help=p_help)
+    authgroup.add_argument('-s', '--no-ssh', action='store_true',
+                           help=s_help)
+    cmdargs = parser.parse_args(args_list)
 
-	cmdargs = parser.parse_args(args_list)
+    # Set values for inventory template from user input
+    host_info = {}
+    host_info['ansible_host'] = input('Enter IP address:')
+    host_info['ansible_port'] = input(
+        'Enter ssh port or leave blank for default:') or 22
+    host_info['ansible_user'] = input('Enter username:')
 
-	# Set values for inventory template from user input
-	host_info = {}
-	host_info['ansible_host'] = input('Enter IP address:')
-	host_info['ansible_port'] = input(
-	 	'Enter ssh port or leave blank for default:') or 22
-	host_info['ansible_user'] = input('Enter username:')
+    # Pass host to ansible command since inventory doesn't exist
+    cli_args = {'-i': host_info['ansible_host'] + ','}
 
-	# Pass host to ansible command since inventory doesn't exist
-	cli_args = {'-i': host_info['ansible_host'] + ','}
+    if cmdargs.ask_pass == True:
+        host_info['ask_pass'] = True
+        host_info['ansible_ssh_extra_args'] = '-o StrictHostKeyChecking=no'
+    if cmdargs.no_pass == True:
+        host_info['ssh_pass'] = ""
+    if cmdargs.no_ssh == True:
+        host_info['no_ssh'] = True
+    else:
+        cli_args['--ask-pass'] = None
 
-	if cmdargs.ask_pass == True:
-		host_info['ask_pass'] = True
-		host_info['ansible_ssh_extra_args'] = '-o StrictHostKeyChecking=no'
-	if cmdargs.no_pass == True:
-		host_info['ssh_pass'] = ""
-	if cmdargs.no_ssh == True:
-		host_info['no_ssh'] = True
-	else:
-		cli_args['--ask-pass'] = None
-
-	run_playbook_w_vars('host_setup', host_info, args_dict=cli_args)
+    run_playbook_w_vars('host_setup', host_info, args_dict=cli_args)
 
 
 def submit(args_list):
-	parser = argparse.ArgumentParser(
-		prog='zosible submit',
-		description='Upload and submit a data set for execution.',
-		parents=[parent_parser])
-	parser.add_argument('local_file_name', help='local file to upload')
-	parser.add_argument('data_set_name', nargs='?', default='',
-						help='name of data set to create')
-	cmdargs = parser.parse_args(args_list)
+    parser = argparse.ArgumentParser(
+        prog='zosible submit',
+        description='Upload and submit a data set for execution.',
+        parents=[parent_parser])
+    parser.add_argument('local_file_name', help='local file to upload')
+    parser.add_argument('data_set_name', nargs='?', default='',
+                        help='name of data set to create')
+    cmdargs = parser.parse_args(args_list)
 
-	cmdargs.data_set_type = 'SEQ'
-	cmdargs.exec_type = 'JCL'
+    cmdargs.data_set_type = 'SEQ'
+    cmdargs.exec_type = 'JCL'
 
-	dsninfo = interpret_dsname(cmdargs.data_set_name)
-	if dsninfo:
-		cmdargs.data_set_name = dsninfo.name
-		cmdargs.data_set_type = dsninfo.type
-	else:
-		del cmdargs.data_set_name
+    dsninfo = interpret_dsname(cmdargs.data_set_name)
+    if dsninfo:
+        cmdargs.data_set_name = dsninfo.name
+        cmdargs.data_set_type = dsninfo.type
+    else:
+        del cmdargs.data_set_name
 
-	with open(cmdargs.local_file_name) as file:
-		firstln_txt = file.readline()
+    with open(cmdargs.local_file_name) as file:
+        firstln_txt = file.readline()
 
-	if re.search(r"\/\*.*REXX.*\*\/", firstln_txt, re.I):
-		cmdargs.exec_type = 'REXX'
+    if re.search(r"\/\*.*REXX.*\*\/", firstln_txt, re.I):
+        cmdargs.exec_type = 'REXX'
 
-	run_playbook_w_vars('submit_job', cmdargs)
-	subprocess.run(['cat', './output.txt'])
+    run_playbook_w_vars('submit_job', cmdargs)
+    subprocess.run(['cat', OUT_PATH])
 
 
 def create(args_list):
-	parser = argparse.ArgumentParser(
-		prog='zosible create',
-		description='Create a data set from a local file',
-		parents=[parent_parser])
-	parser.add_argument('local_file_name', help='local file to upload')
-	parser.add_argument('data_set_name', help='name of data set to create')
-	cmdargs = parser.parse_args(args_list)
+    parser = argparse.ArgumentParser(
+        prog='zosible create',
+        description='Create a data set from a local file',
+        parents=[parent_parser])
+    parser.add_argument('local_file_name', help='local file to upload')
+    parser.add_argument('data_set_name', help='name of data set to create')
+    cmdargs = parser.parse_args(args_list)
 
-	dsninfo = interpret_dsname(cmdargs.data_set_name)
-	if dsninfo:
-		cmdargs.data_set_name = dsninfo.name
-		cmdargs.data_set_type = dsninfo.type
-		run_playbook_w_vars('create', cmdargs)
-	else:
-		print('Error: Invalid data set name.\n'
-			  'Check z/OS data set naming requirements.')
+    dsninfo = interpret_dsname(cmdargs.data_set_name)
+    if dsninfo:
+        cmdargs.data_set_name = dsninfo.name
+        cmdargs.data_set_type = dsninfo.type
+        run_playbook_w_vars('create', cmdargs)
+    else:
+        print('Error: Invalid data set name.\n'
+              'Check z/OS data set naming requirements.')
 
 
 def delete(args_list):
-	parser = argparse.ArgumentParser(
-		prog='zosible delete',
-		description='Delele a data set or PDS member',
-		parents=[parent_parser])
-	parser.add_argument('data_set_name', help='name of data set to delete')
-	cmdargs = parser.parse_args(args_list)
+    parser = argparse.ArgumentParser(
+        prog='zosible delete',
+        description='Delele a data set or PDS member',
+        parents=[parent_parser])
+    parser.add_argument('data_set_name', help='name of data set to delete')
+    cmdargs = parser.parse_args(args_list)
 
-	dsninfo = interpret_dsname(cmdargs.data_set_name)
-	if dsninfo:
-		cmdargs.data_set_name = dsninfo.name
-		cmdargs.data_set_type = dsninfo.type
-		run_playbook_w_vars('delete', cmdargs)
-	else:
-		print('Error: Invalid data set name.\n'
-			  'Check z/OS data set naming requirements.')
+    dsninfo = interpret_dsname(cmdargs.data_set_name)
+    if dsninfo:
+        cmdargs.data_set_name = dsninfo.name
+        cmdargs.data_set_type = dsninfo.type
+        run_playbook_w_vars('delete', cmdargs)
+    else:
+        print('Error: Invalid data set name.\n'
+              'Check z/OS data set naming requirements.')
 
 def fetch(args_list):
-	parser = argparse.ArgumentParser(
-		prog='zosible fetch',
-		description='Download a data set to a local file',
-		parents=[parent_parser])
-	parser.add_argument('data_set_name', help='name of data set to download')
-	parser.add_argument('local_file_name',
-						help='where to place downloaded data set')
-	cmdargs = parser.parse_args(args_list)
+    parser = argparse.ArgumentParser(
+        prog='zosible fetch',
+        description='Download a data set to a local file',
+        parents=[parent_parser])
+    parser.add_argument('data_set_name', help='name of data set to download')
+    parser.add_argument('local_file_name',
+                        help='where to place downloaded data set')
+    cmdargs = parser.parse_args(args_list)
 
-	dsninfo = interpret_dsname(cmdargs.data_set_name)
-	if dsninfo:
-		cmdargs.data_set_name = dsninfo.name
-		if not cmdargs.local_file_name:
-			cmdargs.local_file_name = cmdargs.data_set_name
-		run_playbook_w_vars('fetch', cmdargs)
-	else:
-		print('Error: Invalid data set name.\n'
-			  'Check z/OS data set naming requirements.')
+    dsninfo = interpret_dsname(cmdargs.data_set_name)
+    if dsninfo:
+        cmdargs.data_set_name = dsninfo.name
+        if not cmdargs.local_file_name:
+            cmdargs.local_file_name = cmdargs.data_set_name
+        run_playbook_w_vars('fetch', cmdargs)
+    else:
+        print('Error: Invalid data set name.\n'
+              'Check z/OS data set naming requirements.')
 
 def dslist(args_list):
-	parser = argparse.ArgumentParser(
-		prog='zosible list',
-		description='List data sets',
-		parents=[parent_parser])
-	parser.add_argument('query', help='query to use to find data sets')
+    parser = argparse.ArgumentParser(
+        prog='zosible list',
+        description=('Displays data sets found by LISTCAT if a wildcard is ',
+                     'included. Otherwise displays the results of LISTDS.'),
+        parents=[parent_parser])
+    parser.add_argument('query', help='query to use to find data set(s)')
 
-	cmdargs = parser.parse_args(args_list)
+    cmdargs = parser.parse_args(args_list)
 
-	cmdargs.query = cmdargs.query.upper()
-	run_playbook_w_vars('list', cmdargs)
+    cmdargs.query = cmdargs.query.upper()
+
+    if valid_query(cmdargs.query):
+        if '*' in cmdargs.query:
+            run_playbook_w_vars('listcat', cmdargs)
+            format_listcat(cmdargs.query)
+        else:
+            run_playbook_w_vars('listds', cmdargs)
+        subprocess.run(['cat', OUT_PATH])
+    else:
+        print('Error: Invalid query.')
 
 
 # Setup Ansible variables and run playbook via command.
 def run_playbook_w_vars(playbook_name, playbook_vars, args_dict={}):
-	playbook_name = './{}.yaml'.format(playbook_name)
-	if type(playbook_vars) != dict:
-		playbook_vars = vars(playbook_vars)
+    playbook_name = './{}.yaml'.format(playbook_name)
+    if type(playbook_vars) != dict:
+        playbook_vars = vars(playbook_vars)
 
-	file_path = playbook_vars.get('local_file_name')
-	if file_path:
-		playbook_vars['local_file_name'] = os.path.abspath(file_path)
+    file_path = playbook_vars.get('local_file_name')
+    if file_path:
+        playbook_vars['local_file_name'] = os.path.abspath(file_path)
 
-	args_list = ['-e', json.dumps(playbook_vars)]
-	for k, v in args_dict.items():
-		args_list.append(k)
-		if v is not None:
-			args_list.append(v)
+    args_list = ['-e', json.dumps(playbook_vars)]
+    for k, v in args_dict.items():
+        args_list.append(k)
+        if v is not None:
+            args_list.append(v)
 
-	subprocess.run(['ansible-playbook', *args_list, playbook_name],
-				   cwd='/usr/local/bin/.zosible/')
+    subprocess.run(['ansible-playbook', *args_list, playbook_name],
+                   cwd='/usr/local/bin/.zosible/')
 
 
 def interpret_dsname(name):
-	pattern = (r"^[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}\."
-			   r"[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}"
-			   r"(\.[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7})?"
-			   r"(\([a-zA-Z#@$]{1}[0-9a-zA-Z#@$]{0,7}\))?$")
+    pattern = (r"^[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}"
+               r"(\.[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}){0,21}$")
 
-	matches = re.search(pattern, name)
+    matches = re.search(pattern, name)
 
-	result = None
-	if matches:
-		result = SimpleNamespace(name=name.upper())
-		result.type = 'MEMBER' if matches.group(2) else 'SEQ'
+    result = None
+    if matches and len(name) <= 44:
+        result = SimpleNamespace(name=name.upper())
+        result.type = 'MEMBER' if matches.group(2) else 'SEQ'
 
-	return result
+    return result
+
+
+def valid_query(query):
+    pattern = (
+        r"^[a-zA-Z#@$][0-9a-zA-Z#@$-]{0,7}"
+        r"(\.(([a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7})|\*)){0,21}$")
+
+    matches = re.search(pattern, query)
+
+    if query.count('*') > 1 or not matches:
+        return False
+
+    return True
+
+
+# Rewrite output to only include the data set names.
+def format_listcat(query):
+    formatted = []
+    hlq, llq = query.split('*')
+
+    with open(OUT_PATH, 'r+') as f:
+        for ln in f:
+            if hlq in ln and llq in ln and query not in ln:
+                formatted.append(ln.split(' ')[-1])
+
+        f.seek(0)
+        for outln in formatted:
+            f.write(outln)
+        f.write('\n')
+        f.truncate()
 
 
 process()
