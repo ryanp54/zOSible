@@ -1,8 +1,6 @@
 ---
   - hosts: zsystem
     gather_facts: no
-    vars_files:
-      - ./vars/last_args.yaml
     environment:
       "{{environment_vars}}"
 
@@ -15,13 +13,10 @@
       - name: Generate data set name if none provided
         set_fact:
           data_set_name: "{{ansible_user | upper}}.ZOSIBLE.TMP{{ 99999 | random(start=10000) }}"
-        when: data_set_name is not defined or not (data_set_name | bool)
-
-      - debug:
-          msg: DSN {{data_set_name}}. DST {{data_set_type}}. LOCAL {{local_file_name}} ET {{exec_type}}
+        when: data_set_name is not defined
 
       - include: upload.yaml
-
+      # TODO: Add check for upload fail and exit
       - name: Submit for execution if JCL
         block:
           - zos_job_submit:
@@ -32,7 +27,7 @@
             register: job_results
           - set_fact:
               job_output: "{{job_results.jobs[0].ddnames}}"
-        when: exec_type is not defined or exec_type == 'JCL'
+        when: exec_type is not defined or exec_type != 'REXX'
 
       - name: Execute if REXX
         block:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, subprocess
-import pdb, argparse, re, glob
+import pdb, argparse, json, re, glob
 
 from types import SimpleNamespace
 
@@ -67,29 +67,20 @@ def setup(args_list):
 
 	# Set values for template from user input
 	conn_info = {}
-	conn_info['target_host'] = '192.86.32.153' #input('Enter IP address:')
-	conn_info['target_port'] = input(
-		'Enter ssh port or leave blank for default:')
-	conn_info['target_user'] = 'z00413' #input('Enter username:')
+	conn_info['ansible_host'] = input('Enter IP address:')
+	# TODO: Handle ports
+	# conn_info['ansible_port'] = input(
+	# 	'Enter ssh port or leave blank for default:')
+	conn_info['ansible_user'] = input('Enter username:')
 
-	if cmdargs.ask_pass:
+	if cmdargs.ask_pass == True:
 		conn_info['ask_pass'] = True
 
-	# Create host inventory file for initial connection
-	# TODO?: Move this to playbook.
-	write_from_template('./.zosible/inventory/host', 'inventory', conn_info)
-
-	subproc_cmdlist = ['ansible-playbook', './host_setup.yaml']
+	args = {'-i': conn_info['ansible_host'] + ','}
 	if not cmdargs.no_ssh:
-		subproc_cmdlist.append('-k')
+		args['-k'] = None
 
-	# Setup new host inventory and host_vars
-	subprocess.run(subproc_cmdlist, cwd='./.zosible/')
-	# Clean up old, renamed host inventory
-	oldf = glob.glob('./.zosible/inventory/host.*')
-	if oldf:
-		subprocess.run(['rm', oldf[0]], stdout=subprocess.DEVNULL,
-					   stderr=subprocess.DEVNULL)
+	run_playbook_w_vars('./host_setup.yaml', conn_info, args_dict=args)
 
 
 def submit(args_list):
@@ -110,14 +101,16 @@ def submit(args_list):
 	if dsninfo:
 		cmdargs.data_set_name = dsninfo.name
 		cmdargs.data_set_type = dsninfo.type
+	else:
+		del cmdargs.data_set_name
 
-	file = open(cmdargs.local_file_name)
-	firstln_txt = file.readline()
-	file.close()
+	with open(cmdargs.local_file_name) as file:
+		firstln_txt = file.readline()
+
 	if re.search(r"\/\*.*REXX.*\*\/", firstln_txt, re.I):
 		cmdargs.exec_type = 'REXX'
 
-	run_playbook_w_args('./submit_job.yaml', cmdargs)
+	run_playbook_w_vars('./submit_job.yaml', vars(cmdargs))
 	subprocess.run(['cat', './.zosible/output.txt'])
 
 
@@ -134,7 +127,7 @@ def create(args_list):
 	if dsninfo:
 		cmdargs.data_set_name = dsninfo.name
 		cmdargs.data_set_type = dsninfo.type
-		run_playbook_w_args('./create.yaml', cmdargs)
+		run_playbook_w_vars('./create.yaml', vars(cmdargs))
 	else:
 		print('Error: Invalid data set name.\n'
 			  'Check z/OS data set naming requirements.')
@@ -147,43 +140,32 @@ def delete(args_list):
 		parents=[parent_parser])
 	parser.add_argument('data_set_name', help='name of data set to delete')
 	cmdargs = parser.parse_args(args_list)
-	
+
 	dsninfo = interpret_dsname(cmdargs.data_set_name)
 	if dsninfo:
 		cmdargs.data_set_name = dsninfo.name
 		cmdargs.data_set_type = dsninfo.type
-		run_playbook_w_args('./delete.yaml', cmdargs)
+		run_playbook_w_vars('./delete.yaml', vars(cmdargs))
 	else:
 		print('Error: Invalid data set name.\n'
 			  'Check z/OS data set naming requirements.')
 
 
 # Setup Ansible variables and run playbook via command.
-# TODO: Eliminate this in favor of passing in via command line args.
-def run_playbook_w_args(playbook_name, args_dict):
-	relative_path = getattr(args_dict, 'local_file_name', '')
-	if relative_path:
-		args_dict.local_file_name = os.path.abspath(relative_path)
+def run_playbook_w_vars(playbook_name, vars_dict, args_dict={}):
+	file_path = vars_dict.get('local_file_name')
+	if file_path:
+		vars_dict['local_file_name'] = os.path.abspath(file_path)
 
-	write_from_template(
-		'./.zosible/vars/last_args.yaml',
-		'last_args',
-		{'vars_dict': vars(args_dict)})
+	args_list = ['-e', json.dumps(vars_dict)]
+	for k, v in args_dict.items():
+		args_list.append(k)
+		if v is not None:
+			args_list.append(v)
 
-	return subprocess.run(['ansible-playbook', playbook_name],
-						  cwd='./.zosible/')
+	subprocess.run(['ansible-playbook', *args_list, playbook_name],
+				   cwd='./.zosible/')
 
-
-def write_from_template(filename, template_name, values):
-	template_file = './{0}.j2'.format(template_name)
-	template = jinja_env.get_template(template_file)
-	text = template.render(values)
-	write_file(filename, text)
-
-def write_file(name, text):
-	f = open(name, 'w')
-	f.write(text)
-	f.close()
 
 def interpret_dsname(name):
 	pattern = (r"^[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}\."

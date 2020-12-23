@@ -1,8 +1,6 @@
 ---
   - hosts: zsystem
     gather_facts: no
-    vars_files:
-      - ./vars/last_args.yaml
     environment:
       "{{environment_vars}}"
         
