@@ -5,23 +5,13 @@
       - ./vars/last_args.yaml
     environment:
       "{{environment_vars}}"
-        
+
     collections:
       - ibm.ibm_zos_core
-    
+
     tasks:
-      - pause:
-          prompt: "Enter SSH password"
-          echo: no
-        register: response
-        no_log: yes
-        when: not ansible_ssh_pass
-        
-      - set_fact:
-          ansible_ssh_pass: "{{ response.user_input }}"
-        no_log: yes
-        when: not ansible_ssh_pass
-        
+      - include: ask_pass.yaml
+
       - name: Submit data set for execution
         zos_job_submit:
           src: "{{ data_set_name }}"
@@ -35,5 +25,5 @@
           job_results: "{{ job_detail.jobs[0]}}"
 
       - name: Results
-        debug:  
+        debug:
           msg: "Job {{ job_results.job_id}} completed with {{ job_results.ret_code.msg}}"

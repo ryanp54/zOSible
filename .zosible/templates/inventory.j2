@@ -4,12 +4,9 @@ zsystem:
     host:
       ansible_host: {{ target_host }}
       ansible_user: {{ target_user }}
-{% if target_pwd %}
-      ansible_ssh_pass: {{ target_pwd }}
-{% endif %}
 {% if ansible_python_interpreter %}
       ansible_python_interpreter: "{{ python_interpreter }}"
 {% endif %}
 {% if ask_pass is defined %}
-	  ask_pass: {{ ask_pass }}
+      ask_pass: {{ ask_pass }}
 {% endif %}
