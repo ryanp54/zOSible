@@ -105,23 +105,23 @@
   tasks:
     - name: Setup SSH authentication
       block:
-        - name: Run expect to generate SSH keys
+        - name: Generate SSH keys
           shell: |
             set timeout 30
             spawn ssh-keygen -t rsa -C {{ ansible_user }}@{{ ansible_host }}
 
             expect "Enter file in which to save the key (/root/.ssh/id_rsa):"
-            send "\n"
+            send "/root/.ssh/zosible_rsa\n"
 
             expect {
               "Overwrite (y/n)?" {
-                send "n\n"
+                send "y\n"
               }
               "Enter passphrase (empty for no passphrase):" {
-                send "\n"
+                send "{{ ansible_ssh_pass }}\n"
 
                 expect "Enter same passphrase again:"
-                send "\n"
+                send "{{ ansible_ssh_pass }}\n"
               }
             }
 
@@ -130,10 +130,10 @@
             executable: /usr/bin/expect
           delegate_to: localhost
 
-        - name: Run expect to copy SSH key to host
+        - name: Copy SSH key to host
           shell: |
             set timeout 30
-            spawn ssh-copy-id {{ ansible_user }}@{{ ansible_host }}
+            spawn ssh-copy-id -i /root/.ssh/zosible_rsa -p {{ansible_port}} {{ ansible_user }}@{{ ansible_host }}
 
             expect {
               "*to continue connecting (yes/no/*)?" {
@@ -150,7 +150,7 @@
             executable: /usr/bin/expect
           delegate_to: localhost
       when: ansible_ssh_pass is defined
-     
+
     - name: Gather potential dependency paths
       raw: 'find / -level {{ max_search_depth }} -type f -perm -111 -name "python*" -o -type f -perm -111 -name "dtouch" 2>/dev/null || :'
       register: dependency_paths
@@ -221,12 +221,6 @@
         zoau_root: "{{ chosen_zoau.get('root') }}"
       delegate_to: localhost
 
-    - set_fact:
-        target_user: "{{ ansible_user }}"
-
-    - set_fact:
-        target_host: "{{ ansible_host }}"
-
     - name: Create inventory file
       template:
         src: "{{ playbook_dir }}/templates/inventory.j2"
@@ -240,5 +234,5 @@
         var: potential_paths
 
     - debug:
-        msg: "Inventory file placed at '{{ playbook_dir }}/{{ inventory_hostname_short }}', 
+        msg: "Inventory file placed at '{{ playbook_dir }}/{{ inventory_hostname_short }}',
         host_vars file placed at '{{ playbook_dir }}/host_vars/{{ inventory_hostname_short }}.yaml'"

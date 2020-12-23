@@ -2,8 +2,9 @@
 zsystem:
   hosts:
     host:
-      ansible_host: {{ target_host }}
-      ansible_user: {{ target_user }}
+      ansible_host: {{ ansible_host }}
+      ansible_user: {{ ansible_user }}
+      ansible_port: {{ ansible_port }}
 {% if ansible_python_interpreter %}
       ansible_python_interpreter: "{{ python_interpreter }}"
 {% endif %}

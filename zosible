@@ -70,9 +70,8 @@ def setup(args_list):
 	# Set values for template from user input
 	conn_info = {}
 	conn_info['ansible_host'] = input('Enter IP address:')
-	# TODO: Handle ports
-	# conn_info['ansible_port'] = input(
-	# 	'Enter ssh port or leave blank for default:')
+	conn_info['ansible_port'] = input(
+	   'Enter ssh port or leave blank for default:') or 22
 	conn_info['ansible_user'] = input('Enter username:')
 
 	if cmdargs.ask_pass == True:
