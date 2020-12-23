@@ -1,0 +1,22 @@
+- name: Prompt for password if needed
+  block:
+    - pause:
+        prompt: "Enter SSH password"
+        echo: no
+      register: response
+      no_log: yes
+
+    - set_fact:
+        ansible_ssh_pass: "{{response.user_input}}"
+      no_log: yes
+  when: ask_pass is defined
+
+- name: Ensure zosible ssh key has been added to agent.
+  block:
+    - command: ssh-add -l
+      register: result
+      ignore_errors: yes
+    - command: ssh-add /root/.ssh/zosible_rsa
+      when: ansible_user+'@'+ansible_host not in result.stdout
+  delegate_to: localhost
+  when: ask_pass is not defined and no_ssh is not defined

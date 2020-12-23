@@ -105,6 +105,12 @@
   tasks:
     - name: Setup SSH authentication
       block:
+        - name: Check if passphrase should be used
+          set_fact:
+            ssh_pass: "{{ ansible_ssh_pass }}"
+          no_log: yes
+          when: ssh_pass is not defined
+
         - name: Generate SSH keys
           shell: |
             set timeout 30
@@ -116,19 +122,19 @@
             expect {
               "Overwrite (y/n)?" {
                 send "y\n"
+                exp_continue
               }
               "Enter passphrase (empty for no passphrase):" {
-                send "{{ ansible_ssh_pass }}\n"
+                send "{{ ssh_pass }}\n"
 
                 expect "Enter same passphrase again:"
-                send "{{ ansible_ssh_pass }}\n"
+                send "{{ ssh_pass }}\n"
               }
             }
 
             expect eof
           args:
             executable: /usr/bin/expect
-          delegate_to: localhost
 
         - name: Copy SSH key to host
           shell: |
@@ -148,8 +154,24 @@
             expect eof
           args:
             executable: /usr/bin/expect
-          delegate_to: localhost
-      when: ansible_ssh_pass is defined
+
+        - name: Add key to ssh-agent
+          shell: |
+            set timeout 30
+            spawn ssh-add /root/.ssh/zosible_rsa
+
+            expect {
+              "Enter passphrase*" {
+                send "{{ ansible_ssh_pass }}\n"
+
+                expect eof
+              }
+              expect eof
+            }
+          args:
+            executable: /usr/bin/expect
+      delegate_to: localhost
+      when: ask_pass is not defined and no_ssh is not defined
 
     - name: Gather potential dependency paths
       raw: 'find / -level {{ max_search_depth }} -type f -perm -111 -name "python*" -o -type f -perm -111 -name "dtouch" 2>/dev/null || :'

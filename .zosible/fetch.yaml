@@ -8,7 +8,7 @@
       - ibm.ibm_zos_core
 
     tasks:
-      - include: ask_pass.yaml
+      - include: auth.yaml
 
       - name: Fetch data set or member
         zos_fetch:

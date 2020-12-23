@@ -57,13 +57,20 @@ def setup(args_list):
 			    'variables to be used with zOSible.')
 	k_help = ('Prompt for password with each command '
 			  'instead of using SSH keys.')
-	n_help = ('Do not setup SSH keys, but commands will use SSH keys to '
-			  'connect. An ssh-agent is required if using private keys.')
+	p_help = ('Do not protect SSH key with a passphrase. Eliminates '
+			  'need to enter password after setup.')
+	s_help = ('Do not setup SSH keys, but still use SSH keys to connect. '
+			  'An ssh-agent is required if using private keys.')
 
 	parser = argparse.ArgumentParser(prog='zosible setup',
 									 description=cmd_desc)
-	parser.add_argument('-k', '--ask-pass', action='store_true', help=k_help)
-	parser.add_argument('-n', '--no-ssh', action='store_true', help=n_help)
+	authgroup = parser.add_mutually_exclusive_group()
+	authgroup.add_argument('-k', '--ask-pass', action='store_true',
+						   help=k_help)
+	authgroup.add_argument('-p', '--no-pass', action='store_true',
+						   help=p_help)
+	authgroup.add_argument('-s', '--no-ssh', action='store_true',
+						   help=s_help)
 
 	cmdargs = parser.parse_args(args_list)
 
@@ -79,6 +86,9 @@ def setup(args_list):
 
 	if cmdargs.ask_pass == True:
 		host_info['ask_pass'] = True
+		host_info['ansible_ssh_extra_args'] = '-o StrictHostKeyChecking=no'
+	if cmdargs.no_pass == True:
+		host_info['ssh_pass'] = ""
 	if cmdargs.no_ssh == True:
 		host_info['no_ssh'] = True
 	else:

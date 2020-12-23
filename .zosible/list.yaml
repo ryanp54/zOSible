@@ -8,7 +8,7 @@
       - ibm.ibm_zos_core
 
     tasks:
-      - include: ask_pass.yaml
+      - include: auth.yaml
 
       - name: List matching data sets
         zos_find:

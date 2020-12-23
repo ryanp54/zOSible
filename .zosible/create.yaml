@@ -8,7 +8,7 @@
       - ibm.ibm_zos_core
 
     tasks:
-      - include: ask_pass.yaml
+      - include: auth.yaml
       - include: upload.yaml
       - include: remove.yaml
         when: create_result.changed and copy_result.failed
