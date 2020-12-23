@@ -1,0 +1,11 @@
+  *** JOB OUTPUT ***
+
+{% for step in job_output %}
+  --- {{ step.get('ddname', 'REXX EXEC OUTPUT') }} ---
+
+{% for line in step.content %}
+{{ line }}
+{% endfor %}
+
+
+{% endfor %}

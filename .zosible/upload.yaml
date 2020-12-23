@@ -1,0 +1,20 @@
+- name: Create a data set if it doesn't exist
+  zos_data_set:
+    name: "{{data_set_name}}" # Z00413.SOURCE(TEST)
+    type: "{{data_set_type}}" # MEMBER
+    state: present
+  register: create_result
+  when: not (replace | bool)
+
+- name: Check if --replace needs to be used
+  debug:
+    msg: "Data set name already exists. Use --replace to overwrite."
+  when: not (replace | bool) and not create_result.changed
+
+- name: Copy file to data set
+  zos_copy:
+    src: "{{local_file_name}}" # /usr/local/bin/.zosible/testcont.txt
+    dest: "{{data_set_name}}"
+  register: copy_result
+  ignore_errors: yes
+  when: (replace | bool) or create_result.changed

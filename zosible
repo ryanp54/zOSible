@@ -93,18 +93,32 @@ def setup(args_list):
 
 
 def submit(args_list):
-	# Refactor for argparse and fully fleshout playbook/funcitonality.
-	if len(args_list) == 0 or len(args_list) > 2:
-		return
+	parser = argparse.ArgumentParser(
+		prog='zosible submit',
+		description='Upload and submit a data set for execution.',
+		parents=[parent_parser])
+	parser.add_argument('local_file_name', help='local file to upload')
+	parser.add_argument('data_set_name', nargs='?', default='',
+						help='name of data set to create')
+	cmdargs = parser.parse_args(args_list)
 
-	dsname = args_list.pop()
-	if args_list:
-		pb_args = [{'name': 'local_file_name', 'value': args_list[0]}]
-		#TODO: Create an upload playbook and execute here.
+	# Add default computed args
+	cmdargs.data_set_type = 'SEQ'
+	cmdargs.exec_type = 'JCL'
 
-	run_playbook_w_args(
-		'./submit_job.yaml',
-		[{'name': 'data_set_name', 'value': dsname}])
+	dsninfo = interpret_dsname(cmdargs.data_set_name)
+	if dsninfo:
+		cmdargs.data_set_name = dsninfo.name
+		cmdargs.data_set_type = dsninfo.type
+
+	file = open(cmdargs.local_file_name)
+	firstln_txt = file.readline()
+	file.close()
+	if re.search(r"\/\*.*REXX.*\*\/", firstln_txt, re.I):
+		cmdargs.exec_type = 'REXX'
+
+	run_playbook_w_args('./submit_job.yaml', cmdargs)
+	subprocess.run(['cat', './.zosible/output.txt'])
 
 
 def create(args_list):
@@ -144,8 +158,8 @@ def delete(args_list):
 			  'Check z/OS data set naming requirements.')
 
 
-
 # Setup Ansible variables and run playbook via command.
+# TODO: Eliminate this in favor of passing in via command line args.
 def run_playbook_w_args(playbook_name, args_dict):
 	relative_path = getattr(args_dict, 'local_file_name', '')
 	if relative_path:
