@@ -1,5 +1,0 @@
-- name: Remove data set or member
-  zos_data_set:
-    name: "{{data_set_name}}" # Z00413.SOURCE(TEST)
-    type: "{{data_set_type}}" # MEMBER
-    state: absent

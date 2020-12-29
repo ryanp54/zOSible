@@ -8,12 +8,9 @@ RUN apt update \
 
 RUN apt install -y sshpass; apt install -y expect
 
-WORKDIR /usr/local/bin
-
-COPY zosible ./
-COPY .zosible/ ./.zosible/
-COPY zos_tso_command.py /root/.ansible/collections/ansible_collections/ibm/ibm_zos_core/plugins/modules/
+COPY bin/ /usr/local/bin/
+COPY lib/zos_tso_command.py /root/.ansible/collections/ansible_collections/ibm/ibm_zos_core/plugins/modules/
 
 WORKDIR /mnt
 
-ENTRYPOINT ["/usr/local/bin/.zosible/zosbash"]
+ENTRYPOINT ["/usr/local/bin/.zosbash"]

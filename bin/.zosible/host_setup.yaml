@@ -1,14 +1,16 @@
 ###############################################################################
 # © Copyright IBM Corporation 2020
-# Contributed by the Ansible Content for IBM Z Team
+# Used under Apache License, Version 2.0
+# https://opensource.org/licenses/Apache-2.0
 #
-# Changelog
-#  All notable changes to this sample will be documented in this playbook
+# This is a modified version of the playbook of the same name from the
+# z_ansible_collections_samples by IBM.
+# https://github.com/IBM/z_ansible_collections_samples
 #
-# 2020-09-01
-#  - Released initial version
-# 2020-09-09
-#  - Updated doc to include --ask-pass
+# Modifications:
+#  This playbook has been modified to setup SSH keys and use ssh-agent for
+#  authentication as the first task. Some set_fact tasks have also been
+#  removed as it is used with a different inventory template.
 ###############################################################################
 
 ###############################################################################
@@ -93,7 +95,6 @@
 #                 a small max_search_depth will be much faster.
 ###############################################################################
 
-# Run with --ask-pass unless SSH keys have already been setup
 
 - hosts: all
   gather_facts: no

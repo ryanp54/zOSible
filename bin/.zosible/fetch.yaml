@@ -1,5 +1,5 @@
 ---
-  - hosts: zsystem
+  - hosts: mainframe
     gather_facts: no
     environment:
       "{{environment_vars}}"

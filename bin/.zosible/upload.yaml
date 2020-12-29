@@ -1,7 +1,7 @@
 - name: Create a data set if it doesn't exist
   zos_data_set:
-    name: "{{data_set_name}}" # Z00413.SOURCE(TEST)
-    type: "{{data_set_type}}" # MEMBER
+    name: "{{data_set_name}}"
+    type: "{{data_set_type}}"
     state: present
   register: create_result
   when: not (replace | bool)
@@ -13,7 +13,7 @@
 
 - name: Copy file to data set
   zos_copy:
-    src: "{{local_file_name}}" # /usr/local/bin/.zosible/testcont.txt
+    src: "{{local_file_name}}"
     dest: "{{data_set_name}}"
   register: copy_result
   ignore_errors: yes
