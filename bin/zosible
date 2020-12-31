@@ -223,7 +223,8 @@ def run_playbook_w_vars(playbook_name, playbook_vars, args_dict={}):
 
 def interpret_dsname(name):
     pattern = (r"^[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}"
-               r"(\.[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}){0,21}$")
+               r"(\.[a-zA-Z#@$]{1}[0-9a-zA-Z#@$-]{0,7}){0,21}"
+               r"(\([a-zA-Z#@$]{1}[0-9a-zA-Z#@$]{0,7}\))?$")
 
     matches = re.search(pattern, name)
 
