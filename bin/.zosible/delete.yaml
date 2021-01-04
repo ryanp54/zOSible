@@ -9,10 +9,4 @@
 
     tasks:
       - include: auth.yaml
-
-      - name: Delete data set or member
-        zos_data_set:
-          name: "{{ data_set_name }}"
-          type: "{{ data_set_type }}"
-          state: absent
-
+      - include: remove.yaml
