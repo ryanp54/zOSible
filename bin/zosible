@@ -136,6 +136,7 @@ def create(args_list):
         cmdargs.data_set_name = dsninfo.name
         cmdargs.data_set_type = dsninfo.type
         run_playbook_w_vars('create', cmdargs)
+        subprocess.run(['cat', OUT_PATH])
     else:
         print('Error: Invalid data set name.\n'
               'Check z/OS data set naming requirements.')
@@ -216,6 +217,10 @@ def run_playbook_w_vars(playbook_name, playbook_vars, args_dict={}):
         args_list.append(k)
         if v is not None:
             args_list.append(v)
+
+    # Clear output file
+    with open(OUT_PATH, 'w+') as f:
+        f.write('\n')
 
     subprocess.run(['ansible-playbook', *args_list, playbook_name],
                    cwd='/usr/local/bin/.zosible/')

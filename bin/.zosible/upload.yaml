@@ -7,8 +7,20 @@
   when: not (replace | bool)
 
 - name: Check if --replace needs to be used
-  debug:
-    msg: "Data set name already exists. Use --replace to overwrite."
+  block:
+    - debug:
+        msg: "Data set name already exists. Use command with --replace option to overwrite."
+
+    - set_fact:
+        list_output:
+          - "Data set name already exists. Use command with --replace option to overwrite."
+
+    - name: Write message
+      template:
+        src: "{{ playbook_dir }}/templates/list_output.j2"
+        dest: "/usr/local/bin/.zosible/output.txt"
+        force: yes
+      delegate_to: localhost
   when: not (replace | bool) and not create_result.changed
 
 - name: Copy file to data set
