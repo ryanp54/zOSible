@@ -11,12 +11,19 @@
       - include: auth.yaml
 
       - name: Generate data set name if none provided
-        set_fact:
-          data_set_name: "{{ansible_user | upper}}.ZOSIBLE.TMP{{ 99999 | random(start=10000) }}"
+        block:
+          - set_fact:
+              temp_data_set: yes
+          - set_fact:
+              data_set_name: "{{ansible_user | upper}}.ZOSIBLE.TMP{{ 99999 | random(start=10000) }}"
         when: data_set_name is not defined
 
       - include: upload.yaml
-      # TODO: Add check for upload fail and exit
+
+      - fail:
+          msg: File upload failed
+        when: copy_result is not defined or (copy_result.get('skipped') | bool)
+
       - name: Submit for execution if JCL
         block:
           - zos_job_submit:
@@ -33,11 +40,14 @@
         block:
           - zos_tso_command:
               commands:
-                - EXEC 'Z00413.ZOSIBLE.TMP54852' exec
+                - EXEC '{{data_set_name}}' exec
             register: exec_results
           - set_fact:
               job_output: "{{exec_results.output}}"
         when: exec_type is defined and exec_type == 'REXX'
+
+      - include: remove.yaml
+        when: temp_data_set is defined
 
       - name: Write job output
         template:
