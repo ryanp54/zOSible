@@ -44,7 +44,7 @@ def process():
 
 def main_help(parser):
     parser.print_help()
-    print('\nEnter a valid command with -h or --help'
+    print('\nEnter a valid command with -h or --help '
           'to diplay command specific help.\n')
 
 
@@ -145,8 +145,7 @@ def create(args_list):
 def delete(args_list):
     parser = argparse.ArgumentParser(
         prog='zosible delete',
-        description='Delele a data set or PDS member',
-        parents=[parent_parser])
+        description='Delele a data set or PDS member')
     parser.add_argument('data_set_name', help='name of data set to delete')
     cmdargs = parser.parse_args(args_list)
 
@@ -162,8 +161,7 @@ def delete(args_list):
 def fetch(args_list):
     parser = argparse.ArgumentParser(
         prog='zosible fetch',
-        description='Download a data set to a local file',
-        parents=[parent_parser])
+        description='Download a data set to a local file')
     parser.add_argument('data_set_name', help='name of data set to download')
     parser.add_argument('local_file_name',
                         help='where to place downloaded data set')
@@ -182,9 +180,8 @@ def fetch(args_list):
 def dslist(args_list):
     parser = argparse.ArgumentParser(
         prog='zosible list',
-        description=('Displays data sets found by LISTCAT if a wildcard is ',
-                     'included. Otherwise displays the results of LISTDS.'),
-        parents=[parent_parser])
+        description=('Displays data sets found by LISTCAT if a wildcard is '
+                     'included. Otherwise displays the results of LISTDS.'))
     parser.add_argument('query', help='query to use to find data set(s)')
 
     cmdargs = parser.parse_args(args_list)
